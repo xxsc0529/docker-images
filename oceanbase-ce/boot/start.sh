@@ -24,16 +24,6 @@ function exit_while_error() {
 	return $(is_true ${EXIT_WHILE_ERROR})
 }
 
-function remove_disk_check_logic_in_obd() {
-	# make sure obd copy the plugin code
-	obd cluster list
-	start_check_files=('/root/.obd/plugins/oceanbase/3.1.0/start_check.py' '/root/.obd/plugins/oceanbase/4.0.0.0/start_check.py')
-	for start_check_file in ${start_check_files[@]}; do
-		sed -i "s/critical('(%s) %s not enough disk space\. (Avail/alert('(%s) %s not enough disk space\. (Avail/g" $start_check_file
-		sed -i "s/critical(EC_OBSERVER_NOT_ENOUGH_DISK_4_CLOG/alert(EC_OBSERVER_NOT_ENOUGH_DISK_4_CLOG/g" $start_check_file
-	done
-}
-
 function exec_tenant_init_sql() {
 	INIT_SCRIPTS_ROOT="${1}"
 
@@ -93,14 +83,22 @@ function check_tenant_connectable() {
 }
 
 function fastboot() {
-	cd /root/demo/ && tar -xvzf store.tar.gz
-	obd cluster start demo
+    date
+    export LD_LIBRARY_PATH=/root/demo/lib
+    cd /root/demo/ 
+    unsquashfs -d /root/demo/store store.img
+    unsquashfs -d /root/demo/etc etc.img
+    /root/recover-clog.sh
+    date
+    bin/observer
+    obd env set CUSTOM_CLUSTER_ID $(< /dev/urandom tr -dc 'A-Za-z0-9' | head -c32)
+    obd cluster start demo
+    date
 }
 
 function boot() {
 	# generate config based on variables
 	envsubst <templates/observer-template.yaml >/tmp/config.yaml
-	envsubst <templates/ob-configserver-template.yaml >>/tmp/config.yaml
 	obd cluster deploy obcluster -c /tmp/config.yaml
 	if [ $? -ne 0 ]; then
 		deploy_failed
@@ -139,8 +137,6 @@ function set_tenant_password() {
 source boot/env.sh
 
 get_mode
-remove_disk_check_logic_in_obd
-cd /root/.obd && tar -xvzf repository.tar.gz && cd /root
 if [ -f "/root/.obd/cluster/obcluster/config.yaml" ]; then
 	echo "find obd deploy information, skip configuring..."
 	echo "start ob cluster ..."
@@ -163,5 +159,6 @@ else
 	fi
 fi
 
+date
 echo "boot success!"
 loop_forever

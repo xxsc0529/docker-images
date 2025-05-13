@@ -21,14 +21,18 @@ RUN obd mirror disable remote
 RUN obd cluster deploy demo -c /root/demo.yaml
 
 RUN rm -rf /root/demo/store && rm -rf /root/demo/etc
-RUN cd /root/.obd && rm -rf log/obd && tar -cvzf repository.tar.gz repository && rm -rf /root/.obd/repository && rm -rf /root/.obd/mirror/local/* && rm -rf /root/.obd/cluster
+RUN cd /root/.obd && rm -rf log/obd && rm -rf /root/.obd/mirror/local/* && rm -rf /root/.obd/cluster
+RUN find /root/.obd/repository -name "ob_admin" | xargs rm -rf
+RUN find /root/.obd/repository -name "oblogminer" | xargs rm -rf
 
 FROM openanolis/anolisos
 
 WORKDIR /root
+RUN yum install -y gettext ncurses-compat-libs openssh-server squashfs-tools && yum clean all
+
 RUN yum install -y yum-utils && \
     yum-config-manager --add-repo http://mirrors.oceanbase.com/oceanbase/OceanBase.repo && \
-    yum install -y ob-deploy obclient ob-sysbench gettext ncurses-compat-libs openssh-server && \
+    yum install -y ob-deploy obclient ob-sysbench && \
     yum clean all
 
 RUN obd env set IO_DEFAULT_CONFIRM 1
@@ -44,12 +48,13 @@ RUN cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
 COPY --from=builder /root/demo /root/demo
 COPY --from=builder /root/.obd /root/.obd
 
-RUN yum install -y --downloadonly --downloaddir=/tmp ob-configserver && obd mirror clone /tmp/*.rpm && rm -rf /tmp/*.rpm
 
-COPY boot /root/boot
-COPY templates /root/templates
 COPY share/cluster /root/.obd/cluster
-COPY share/store.tar.gz /root/demo/
-COPY share/etc.tar.gz /root/demo/
+COPY share/etc.img /root/demo/etc.img
+COPY share/store.img /root/demo/store.img
+COPY share/empty_clog /root/empty_clog
+COPY build/recover-clog.sh /root/recover-clog.sh
+COPY templates /root/templates
+COPY boot /root/boot
 
 ENTRYPOINT ["bash", "-c", "/usr/sbin/sshd && /root/boot/start.sh"]

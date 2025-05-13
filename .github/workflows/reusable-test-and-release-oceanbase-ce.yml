@@ -9,6 +9,9 @@ on:
       lts:
         required: true
         type: boolean
+      latest:
+        required: true
+        type: boolean
 
 jobs:
   set-version:
@@ -30,7 +33,9 @@ jobs:
   release:
     uses: ./.github/workflows/reusable-build-and-release-oceanbase-ce.yml
     needs: [ set-version, build-and-test ]
+    secrets: inherit
     with:
       version: ${{ needs.set-version.outputs.version }}
       push-images: true
       push-lts-images: ${{ inputs.lts }}
+      push-latest-images: ${{ inputs.latest }}
